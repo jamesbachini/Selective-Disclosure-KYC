@@ -2,8 +2,6 @@
 
 A privacy-preserving KYC system using **BLS ring signatures** and **Soroban smart contracts** on the Stellar blockchain. Users can selectively prove attributes (like "over 18") without revealing their identity or full credentials.
 
-![Architecture Diagram](https://via.placeholder.com/800x400?text=Selective+Disclosure+KYC+Architecture)
-
 ## Features
 
 - **Privacy-Preserving**: Users prove attributes without revealing identity
