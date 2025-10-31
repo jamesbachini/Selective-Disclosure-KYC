@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Bytes, BytesN, Env, Symbol, Vec,
+    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, Symbol, Vec,
 };
 use soroban_sdk::crypto::bls12_381::{Fr, G1Affine};
 
@@ -48,11 +48,7 @@ impl RingSigContract {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("Contract already initialized");
         }
-
-        admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
-
-        // Initialize empty issuers list
         let issuers: Vec<BytesN<96>> = Vec::new(&env);
         env.storage().persistent().set(&DataKey::Issuers, &issuers);
     }

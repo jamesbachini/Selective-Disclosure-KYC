@@ -1,23 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { connectWallet, createKeys, createRingForAttribute } from '../utils/contract';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 function IssuerPage() {
   const [walletAddress, setWalletAddress] = useState('');
-  const [issuerKey, setIssuerKey] = useState('');
+  const [issuers, setIssuers] = useState([]);
+  const [selectedIssuerId, setSelectedIssuerId] = useState('');
+  const [credentials, setCredentials] = useState(null);
+  const [credentialsInput, setCredentialsInput] = useState('');
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [selectedRequest, setSelectedRequest] = useState(null);
 
   useEffect(() => {
-    if (issuerKey) {
+    loadIssuers();
+  }, []);
+
+  useEffect(() => {
+    if (credentials && credentials.publicKey) {
       loadKYCRequests();
       const interval = setInterval(loadKYCRequests, 5000); // Poll every 5 seconds
       return () => clearInterval(interval);
     }
-  }, [issuerKey]);
+  }, [credentials]);
+
+  const loadIssuers = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/issuers`);
+      const data = await response.json();
+      setIssuers(data.issuers || []);
+    } catch (error) {
+      console.error('Error loading issuers:', error);
+    }
+  };
+
+  const handleLoadCredentials = () => {
+    try {
+      const parsed = JSON.parse(credentialsInput);
+      if (!parsed.publicKey || !parsed.secretKey || !parsed.name) {
+        throw new Error('Invalid credentials format. Must include name, publicKey, and secretKey.');
+      }
+      setCredentials(parsed);
+      setMessage({ text: `Loaded credentials for ${parsed.name}`, type: 'success' });
+    } catch (error) {
+      setMessage({ text: `Error parsing credentials: ${error.message}`, type: 'error' });
+    }
+  };
 
   const handleConnectWallet = async () => {
     try {
@@ -33,8 +63,9 @@ function IssuerPage() {
   };
 
   const loadKYCRequests = async () => {
+    if (!credentials || !credentials.publicKey) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/kyc-requests?issuerPubKey=${issuerKey}&status=pending`);
+      const response = await fetch(`${API_BASE_URL}/api/kyc-requests?issuerPubKey=${credentials.publicKey}&status=pending`);
       const data = await response.json();
       setRequests(data.requests || []);
     } catch (error) {
@@ -48,65 +79,71 @@ function IssuerPage() {
       return;
     }
 
+    if (!credentials) {
+      setMessage({ text: 'Please load your credentials first', type: 'error' });
+      return;
+    }
+
     try {
       setLoading(true);
-      setMessage({ text: 'Creating keys and credential...', type: 'info' });
+      setMessage({ text: 'Generating keys via smart contract...', type: 'info' });
 
       // Generate keys for each attribute the user qualifies for
       const userKeys = {};
       const rings = {};
 
       for (const attribute of request.attributes) {
-        // Create a key for this user
+        // Create a key for this user via smart contract
         const keyResult = await createKeys(1);
-        // In a real implementation, parse the keyResult properly
-        const mockSecretKey = Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('');
-        const mockPublicKey = Array.from({ length: 192 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('');
 
-        userKeys[attribute] = mockSecretKey;
+        if (!keyResult.secretKeys || !keyResult.publicKeys ||
+            keyResult.secretKeys.length === 0 || keyResult.publicKeys.length === 0) {
+          throw new Error(`Failed to generate keys for attribute ${attribute}`);
+        }
 
-        // Get existing ring for this attribute or create new one
-        // For demo purposes, we'll create a mock ring
-        const mockRing = [
-          mockPublicKey,
-          // Add some other mock keys for anonymity
-          ...Array.from({ length: 4 }, () =>
-            Array.from({ length: 192 }, () =>
-              Math.floor(Math.random() * 16).toString(16)
-            ).join('')
-          ),
+        const userSecretKey = keyResult.secretKeys[0];
+        const userPublicKey = keyResult.publicKeys[0];
+
+        userKeys[attribute] = userSecretKey;
+
+        // Create ring with user's public key and some decoy keys
+        setMessage({ text: `Generating ring for ${attribute}...`, type: 'info' });
+        const decoyKeys = await createKeys(4); // Generate 4 decoy keys
+
+        const ring = [
+          userPublicKey,
+          ...decoyKeys.publicKeys
         ];
 
-        rings[attribute] = mockRing;
+        rings[attribute] = ring;
 
         // Update the ring on-chain
+        setMessage({ text: `Registering ring for ${attribute} on blockchain...`, type: 'info' });
         try {
-          await createRingForAttribute(walletAddress, attribute, mockRing);
+          await createRingForAttribute(walletAddress, attribute, ring);
         } catch (error) {
           console.error(`Error creating ring for ${attribute}:`, error);
-          // Continue anyway for demo
+          setMessage({ text: `Warning: Failed to register ring for ${attribute} on chain, but continuing...`, type: 'warning' });
         }
       }
 
       // Create credential JSON
       const credential = {
-        issuer: issuerKey,
+        issuer: credentials.publicKey,
         user_keys: userKeys,
         rings: rings,
         issued_at: new Date().toISOString(),
       };
 
+      setMessage({ text: 'Sending credential to backend...', type: 'info' });
+
       // Send approval to backend
-      const response = await fetch(`${API_BASE_URL}/approve-kyc`, {
+      const response = await fetch(`${API_BASE_URL}/api/approve-kyc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: request.requestId,
-          issuerPubKey: issuerKey,
+          issuerPubKey: credentials.publicKey,
           credential,
         }),
       });
@@ -115,7 +152,7 @@ function IssuerPage() {
 
       if (result.success) {
         setMessage({
-          text: `KYC approved for user ${request.userId}! Credential issued.`,
+          text: `KYC approved for user ${request.userId}! Credential issued with real keys.`,
           type: 'success',
         });
         await loadKYCRequests();
@@ -131,14 +168,19 @@ function IssuerPage() {
   };
 
   const handleReject = async (request, reason) => {
+    if (!credentials) {
+      setMessage({ text: 'Please load your credentials first', type: 'error' });
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/reject-kyc`, {
+      const response = await fetch(`${API_BASE_URL}/api/reject-kyc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: request.requestId,
-          issuerPubKey: issuerKey,
+          issuerPubKey: credentials.publicKey,
           reason: reason || 'KYC verification failed',
         }),
       });
@@ -159,13 +201,6 @@ function IssuerPage() {
     }
   };
 
-  const generateMockIssuerKey = () => {
-    const mockKey = Array.from({ length: 192 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('');
-    setIssuerKey(mockKey);
-  };
-
   return (
     <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
@@ -183,7 +218,7 @@ function IssuerPage() {
                 disabled={loading}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
               >
-                {loading ? 'Connecting...' : 'Connect Freighter Wallet'}
+                {loading ? 'Connecting...' : 'Connect Wallet'}
               </button>
             ) : (
               <p className="text-sm text-gray-600">
@@ -193,33 +228,83 @@ function IssuerPage() {
           </div>
         </div>
 
-        {/* Issuer Key Setup */}
+        {/* Issuer Credentials Setup */}
         <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Issuer Identity
+              Load Issuer Credentials
             </h3>
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Your BLS Public Key (must be registered by admin)
-                </label>
-                <input
-                  type="text"
-                  value={issuerKey}
-                  onChange={(e) => setIssuerKey(e.target.value)}
-                  placeholder="Enter your 192 character hex public key..."
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
-                />
+            {!credentials ? (
+              <div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Issuer (Optional)
+                  </label>
+                  <select
+                    value={selectedIssuerId}
+                    onChange={(e) => setSelectedIssuerId(e.target.value)}
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                  >
+                    <option value="">-- Select an issuer --</option>
+                    {issuers.map((issuer) => (
+                      <option key={issuer.id} value={issuer.id}>
+                        {issuer.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {issuers.length === 0 ? 'No issuers registered yet. Contact admin.' : 'Select your issuer from the list'}
+                  </p>
+                </div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Paste Your JSON Credentials
+                  </label>
+                  <textarea
+                    value={credentialsInput}
+                    onChange={(e) => setCredentialsInput(e.target.value)}
+                    placeholder={'{\n  "name": "Your Issuer Name",\n  "publicKey": "...",\n  "secretKey": "..."\n}'}
+                    rows={6}
+                    className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border font-mono text-xs"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Paste the JSON credentials provided by the admin
+                  </p>
+                </div>
+                <button
+                  onClick={handleLoadCredentials}
+                  disabled={!credentialsInput.trim()}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
+                >
+                  Load Credentials
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={generateMockIssuerKey}
-                className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-              >
-                Generate Mock Key
-              </button>
-            </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-green-900 mb-2">Credentials Loaded</h4>
+                <dl className="space-y-1">
+                  <div>
+                    <dt className="text-xs text-green-700">Issuer Name:</dt>
+                    <dd className="text-sm font-medium text-green-900">{credentials.name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-green-700">Public Key:</dt>
+                    <dd className="text-sm font-mono text-green-900 break-all">
+                      {credentials.publicKey.substring(0, 40)}...{credentials.publicKey.substring(credentials.publicKey.length - 40)}
+                    </dd>
+                  </div>
+                </dl>
+                <button
+                  onClick={() => {
+                    setCredentials(null);
+                    setCredentialsInput('');
+                  }}
+                  className="mt-3 text-sm text-green-700 hover:text-green-900 underline"
+                >
+                  Clear and load different credentials
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -245,8 +330,8 @@ function IssuerPage() {
               Pending KYC Requests ({requests.length})
             </h3>
 
-            {!issuerKey ? (
-              <p className="text-gray-500">Please enter your issuer key to view requests.</p>
+            {!credentials ? (
+              <p className="text-gray-500">Please load your credentials to view requests.</p>
             ) : requests.length === 0 ? (
               <p className="text-gray-500">No pending requests.</p>
             ) : (
@@ -319,14 +404,14 @@ function IssuerPage() {
         <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h3 className="text-lg font-medium text-blue-900 mb-2">Instructions</h3>
           <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
-            <li>Connect your Freighter wallet to sign transactions</li>
-            <li>Enter your registered issuer public key to view pending KYC requests</li>
-            <li>Review user information and approve or reject requests</li>
+            <li>Connect your Stellar wallet to sign blockchain transactions</li>
+            <li>Paste the JSON credentials provided by the admin to load your issuer identity</li>
+            <li>Review user information and approve or reject KYC requests</li>
             <li>
-              Approving creates key pairs for each attribute and adds the user to corresponding
-              rings
+              Approving generates real cryptographic key pairs via the smart contract for each attribute
             </li>
-            <li>The credential JSON is sent to the user for local storage</li>
+            <li>Ring signatures are created with user's key plus decoy keys for anonymity</li>
+            <li>The credential JSON is sent to the user for secure local storage</li>
           </ul>
         </div>
       </div>

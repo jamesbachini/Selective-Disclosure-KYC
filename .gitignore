@@ -1,4 +1,6 @@
+.stellar/
 CLAUDE.md
+.claude/
 prompts/
 
 # Logs
@@ -155,3 +157,4 @@ CONTRACT_ID.txt
 *.swo
 *~
 .DS_Store
+

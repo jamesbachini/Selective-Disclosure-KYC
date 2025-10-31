@@ -59,7 +59,7 @@ A privacy-preserving KYC system using **BLS ring signatures** and **Soroban smar
 - **Node.js** v18+ and npm
 - **Rust** and Cargo
 - **Soroban CLI** ([installation guide](https://soroban.stellar.org/docs/getting-started/setup))
-- **Freighter Wallet** browser extension
+- **Stellar Wallet** browser extension (Freighter, xBull, or Albedo)
 - **Stellar testnet** account with XLM
 
 ## Installation
@@ -168,7 +168,7 @@ Frontend runs on `http://localhost:3000`
 ### 1. Admin: Register Issuer
 
 1. Navigate to `/admin`
-2. Connect Freighter wallet
+2. Connect your Stellar wallet
 3. Initialize contract (first time only)
 4. Register trusted KYC issuer public keys
 
@@ -184,7 +184,7 @@ Frontend runs on `http://localhost:3000`
 ### 3. Issuer: Approve KYC
 
 1. Navigate to `/issuer`
-2. Connect Freighter wallet
+2. Connect your Stellar wallet
 3. Enter your registered issuer key
 4. Review pending KYC requests
 5. Approve qualified users
@@ -377,7 +377,7 @@ Selective-Disclosure-KYC/
 - **Frontend**: React, Vite, Tailwind CSS
 - **Blockchain**: Stellar (Soroban)
 - **Cryptography**: BLS12-381, Ring Signatures
-- **Wallet**: Freighter
+- **Wallet Integration**: Stellar Wallets Kit (supports Freighter, xBull, Albedo, etc.)
 
 ## Limitations & Future Work
 
@@ -415,11 +415,13 @@ soroban --version
 stellar account fund <YOUR_ADDRESS> --network testnet
 ```
 
-### Freighter Connection Issues
+### Wallet Connection Issues
 
-1. Ensure Freighter extension is installed
-2. Switch to Stellar Testnet in Freighter
+1. Install a supported Stellar wallet (Freighter, xBull, or Albedo)
+2. Switch to Stellar Testnet in your wallet
 3. Fund your account with testnet XLM
+4. Ensure the wallet extension is unlocked
+5. Refresh the page if the wallet modal doesn't appear
 
 ### Backend Can't Connect to Contract
 
@@ -454,12 +456,7 @@ MIT License - see [LICENSE](LICENSE) file
 - [BLS12-381 Cryptography](https://hackmd.io/@benjaminion/bls12-381)
 - [Ring Signatures Explained](https://en.wikipedia.org/wiki/Ring_signature)
 - [Stellar Developer Docs](https://developers.stellar.org/)
-- [Freighter Wallet](https://www.freighter.app/)
+- [Stellar Tutorials](https://jamesbachini.com/)
 
-## Contact
 
-For questions or issues, please open an issue on GitHub.
-
----
-
-**Built with ❤️ for privacy-preserving identity verification**
+**Built with ❤️ for privacy preserving technology**

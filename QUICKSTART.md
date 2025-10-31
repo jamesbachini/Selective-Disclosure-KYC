@@ -90,32 +90,17 @@ You can test the UI flow without deploying a smart contract:
 
 ## Full Setup with Smart Contract
 
-### 1. Install Soroban CLI
+### 1. Install Soroban CLI & Setup Account
 
 ```bash
-# Install Soroban
 cargo install --locked soroban-cli --features opt
-
-# Configure for testnet
-soroban network add testnet \
-  --rpc-url https://soroban-testnet.stellar.org \
-  --network-passphrase "Test SDF Network ; September 2015"
-
-# Create identity
+soroban network add testnet --rpc-url https://soroban-testnet.stellar.org --network-passphrase "Test SDF Network ; September 2015"
 soroban keys generate default
-```
-
-### 2. Get Testnet XLM
-
-```bash
-# Get your address
 soroban keys address default
-
-# Fund it (visit friendbot)
 stellar account fund <YOUR_ADDRESS> --network testnet
 ```
 
-### 3. Deploy Contract
+### 2. Deploy Contract
 
 ```bash
 # From project root
@@ -128,7 +113,7 @@ This will:
 - Save contract ID
 - Update .env files
 
-### 4. Initialize Contract
+### 3. Initialize Contract
 
 ```bash
 # Get your address
@@ -146,18 +131,23 @@ soroban contract invoke \
   --admin $ADMIN_ADDRESS
 ```
 
-### 5. Install Freighter Wallet
+### 4. Install a Stellar Wallet
 
-1. Install Freighter extension: https://www.freighter.app/
-2. Create/import wallet
-3. Switch to "Testnet" network
-4. Import your key or fund a new address
+Install one of the supported wallets:
+1. **Freighter** (recommended): https://www.freighter.app/
+2. **xBull**: https://xbull.app/
+3. **Albedo**: https://albedo.link/
 
-### 6. Complete Full Flow
+After installation:
+1. Create/import wallet
+2. Switch to "Testnet" network
+3. Import your key or fund a new address
+
+### 5. Complete Full Flow
 
 Now repeat the demo walkthrough steps above, but:
-- In Admin: Connect Freighter wallet before registering issuer
-- In Issuer: Connect Freighter wallet before approving
+- In Admin: Connect your wallet before registering issuer
+- In Issuer: Connect your wallet before approving
 - In Confirm: Actual on-chain verification will occur
 
 ## Troubleshooting
@@ -166,9 +156,10 @@ Now repeat the demo walkthrough steps above, but:
 - Make sure you deployed and initialized the contract
 - Check CONTRACT_ID in .env files matches deployed contract
 
-### "Freighter not installed"
-- Install Freighter browser extension
-- Refresh the page
+### Wallet connection issues
+- Install a supported Stellar wallet (Freighter, xBull, or Albedo)
+- Make sure the wallet is unlocked
+- Refresh the page if the wallet modal doesn't appear
 
 ### "Backend connection failed"
 - Ensure backend is running on port 3001
@@ -190,8 +181,8 @@ User Browser              Backend Server         Stellar Testnet
 ├─ localStorage ◄────────┼─ In-memory Store    │
 │  (credentials)         │  (KYC requests)     │
 │                        │                      │
-└─ Freighter ────────────┴──────────────────────┼─ Soroban Contract
-   (wallet)                                     │  (ring signatures)
+└─ Stellar Wallet ───────┴──────────────────────┼─ Soroban Contract
+   (Freighter/xBull/etc)                        │  (ring signatures)
                                                 │
 ```
 

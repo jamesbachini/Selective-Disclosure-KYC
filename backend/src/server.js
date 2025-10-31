@@ -17,18 +17,63 @@ const kycRequests = new Map();
 // Structure: { userId: credentialJSON }
 const issuedCredentials = new Map();
 
+// Structure: { issuerId: { name, publicKey, timestamp } }
+const registeredIssuers = new Map();
+
 // GET /api/health - Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// GET /api/issuers - Get list of registered issuers (from contract)
-// Note: In production, this would query the smart contract
+// GET /api/issuers - Get list of registered issuers
 app.get('/api/issuers', async (req, res) => {
   try {
-    // TODO: Query smart contract for registered issuers
-    // For now, return empty array
-    res.json({ issuers: [] });
+    const issuers = Array.from(registeredIssuers.entries()).map(([id, data]) => ({
+      id,
+      name: data.name,
+      publicKey: data.publicKey,
+      timestamp: data.timestamp
+    }));
+    res.json({ issuers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/issuers - Register new issuer
+app.post('/api/issuers', (req, res) => {
+  try {
+    const { name, publicKey } = req.body;
+
+    if (!name || !publicKey) {
+      return res.status(400).json({ error: 'Missing required fields: name and publicKey' });
+    }
+
+    // Validate public key format (should be 192 hex characters)
+    if (!/^[0-9a-f]{192}$/i.test(publicKey)) {
+      return res.status(400).json({ error: 'Invalid public key format. Must be 192 hex characters.' });
+    }
+
+    // Check if issuer with this public key already exists
+    const existing = Array.from(registeredIssuers.values()).find(i => i.publicKey === publicKey);
+    if (existing) {
+      return res.status(400).json({ error: 'Issuer with this public key already registered' });
+    }
+
+    const issuerId = uuidv4();
+    registeredIssuers.set(issuerId, {
+      name,
+      publicKey,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log(`[Issuer Registered] ${name} (${issuerId})`);
+
+    res.json({
+      success: true,
+      issuerId,
+      message: 'Issuer registered successfully'
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -256,6 +301,7 @@ app.get('/api/stats', (req, res) => {
     const rejected = Array.from(kycRequests.values()).filter(r => r.status === 'rejected').length;
 
     res.json({
+      totalIssuers: registeredIssuers.size,
       totalRequests: kycRequests.size,
       pendingRequests: pending,
       approvedRequests: approved,

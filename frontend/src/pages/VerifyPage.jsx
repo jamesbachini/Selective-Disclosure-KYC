@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { generateUserId, saveCredential } from '../utils/credentials';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const AVAILABLE_ATTRIBUTES = [
   { id: 'over_18', label: 'Over 18 years old', description: 'Verify age requirement' },
@@ -46,20 +46,15 @@ function VerifyPage() {
 
   const loadIssuers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/issuers`);
+      const response = await fetch(`${API_BASE_URL}/api/issuers`);
       const data = await response.json();
-      // For demo, add some mock issuers if none exist
-      const mockIssuers = data.issuers.length > 0 ? data.issuers : [
-        { key: 'issuer_demo_1', name: 'Demo KYC Provider 1' },
-        { key: 'issuer_demo_2', name: 'Demo KYC Provider 2' },
-      ];
-      setIssuers(mockIssuers);
-      if (mockIssuers.length > 0) {
-        setSelectedIssuer(mockIssuers[0].key);
+      setIssuers(data.issuers || []);
+      if (data.issuers && data.issuers.length > 0) {
+        setSelectedIssuer(data.issuers[0].publicKey);
       }
     } catch (error) {
       console.error('Error loading issuers:', error);
-      setMessage({ text: 'Error loading issuers', type: 'error' });
+      setMessage({ text: 'Error loading issuers from backend', type: 'error' });
     }
   };
 
@@ -89,7 +84,7 @@ function VerifyPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/request-kyc`, {
+      const response = await fetch(`${API_BASE_URL}/api/request-kyc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +119,7 @@ function VerifyPage() {
 
     try {
       setCheckingCredential(true);
-      const response = await fetch(`${API_BASE_URL}/credential/${userId}`);
+      const response = await fetch(`${API_BASE_URL}/api/credential/${userId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -195,17 +190,23 @@ function VerifyPage() {
                 <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
                   Select KYC Provider
                 </h3>
-                <select
-                  value={selectedIssuer}
-                  onChange={(e) => setSelectedIssuer(e.target.value)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
-                >
-                  {issuers.map((issuer) => (
-                    <option key={issuer.key} value={issuer.key}>
-                      {issuer.name || issuer.key}
-                    </option>
-                  ))}
-                </select>
+                {issuers.length === 0 ? (
+                  <div className="text-sm text-gray-600 p-4 bg-gray-50 rounded-md">
+                    No KYC providers available yet. Please contact the admin to authorize issuers.
+                  </div>
+                ) : (
+                  <select
+                    value={selectedIssuer}
+                    onChange={(e) => setSelectedIssuer(e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md border"
+                  >
+                    {issuers.map((issuer) => (
+                      <option key={issuer.id} value={issuer.publicKey}>
+                        {issuer.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -316,10 +317,10 @@ function VerifyPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || issuers.length === 0}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400"
             >
-              {loading ? 'Submitting...' : 'Submit KYC Request'}
+              {loading ? 'Submitting...' : issuers.length === 0 ? 'No KYC Providers Available' : 'Submit KYC Request'}
             </button>
           </form>
         ) : (

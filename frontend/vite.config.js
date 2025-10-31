@@ -12,4 +12,22 @@ export default defineConfig({
       },
     },
   },
+  define: {
+    // Polyfill for Node.js globals
+    'global': 'globalThis',
+  },
+  resolve: {
+    alias: {
+      // Add polyfills for Node.js built-ins if needed
+      buffer: 'buffer/',
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      // Node.js global to browser globalThis
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
 });

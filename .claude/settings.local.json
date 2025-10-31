@@ -3,7 +3,22 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(soroban contract init:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(xargs cat:*)",
+      "Bash(stellar keys list:*)",
+      "Bash(stellar keys ls:*)",
+      "Bash(stellar network:*)",
+      "Bash(stellar keys generate:*)",
+      "Bash(stellar keys address:*)",
+      "Bash(stellar account fund:*)",
+      "Bash(stellar --help:*)",
+      "Bash(curl:*)",
+      "Bash(./scripts/deploy.sh:*)",
+      "Bash(cargo build:*)",
+      "Bash(stellar contract invoke:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

@@ -15,7 +15,8 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex">
-              <Link to="/" className="flex items-center">
+              <Link to="/" className="flex items-center gap-3">
+                <img src="/logo.png" alt="Logo" className="h-10 w-10" />
                 <span className="text-2xl font-bold text-indigo-600">
                   Selective Disclosure KYC
                 </span>
