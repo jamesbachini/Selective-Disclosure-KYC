@@ -1,6 +1,6 @@
 # Selective Disclosure KYC Demo
 
-A privacy-preserving KYC system using **BLS ring signatures** and **Soroban smart contracts** on the Stellar blockchain. Users can selectively prove attributes (like "over 18") without revealing their identity or full credentials.
+A privacy-preserving KYC system using **BLS ring signatures** and **Soroban smart contracts** on the Stellar blockchain. Users can selectively prove attributes (like "Resident of US" or "Accredited Investor") without revealing their identity or full credentials.
 
 ## Features
 
