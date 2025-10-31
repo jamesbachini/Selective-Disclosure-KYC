@@ -8,7 +8,6 @@ A privacy-preserving KYC system using **BLS ring signatures** and **Soroban smar
 - **Ring Signatures**: Anonymous proof within attribute groups using BLS12-381
 - **Selective Disclosure**: Choose which attributes to prove
 - **On-Chain Verification**: Smart contract validates proofs without storing user data
-- **No Blockchain Storage**: User credentials stored locally (localStorage)
 - **Multiple Attributes**: Support for various KYC attributes (age, residency, etc.)
 
 ## Architecture
