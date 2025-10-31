@@ -60,6 +60,36 @@ export function getConnectedWallet() {
 }
 
 /**
+ * Check if wallet is already connected and get address without opening modal
+ * Returns the address if connected, null otherwise
+ */
+export async function getWalletAddressIfConnected() {
+  try {
+    // First check our cached value
+    if (connectedWalletPublicKey) {
+      return connectedWalletPublicKey;
+    }
+
+    // Try to get address from wallet kit without opening modal
+    const walletKit = getKit();
+
+    // Check if wallet is already connected by trying to get the address
+    // This won't open a modal if the wallet is already connected
+    try {
+      const { address } = await walletKit.getAddress();
+      connectedWalletPublicKey = address;
+      return address;
+    } catch (error) {
+      // Wallet not connected yet
+      return null;
+    }
+  } catch (error) {
+    console.log('No wallet connected yet');
+    return null;
+  }
+}
+
+/**
  * Sign a transaction with the connected wallet
  * @returns {Transaction} Signed transaction object
  */
@@ -109,11 +139,30 @@ export async function initializeContract(adminAddress) {
     .setTimeout(30)
     .build();
 
+  // Simulate first
+  console.log('Simulating initialize...');
+  const simResponse = await server.simulateTransaction(transaction);
+
+  if (!simResponse.result) {
+    const errorMsg = simResponse.error ? JSON.stringify(simResponse.error) : 'no error details';
+    console.error('Simulation failed:', JSON.stringify(simResponse, null, 2));
+    throw new Error(`Failed to simulate initialization: ${errorMsg}`);
+  }
+
+  // Assemble transaction with simulation results
+  const assembledTx = SorobanRpc.assembleTransaction(transaction, simResponse).build();
+
   // Sign with wallet
-  const signedTx = await signTransaction(transaction);
+  const signedTx = await signTransaction(assembledTx);
 
   // Submit transaction
   const response = await server.sendTransaction(signedTx);
+  console.log('Initialize response:', JSON.stringify(response, null, 2));
+
+  if (response.status !== 'PENDING' && response.status !== 'SUCCESS') {
+    throw new Error(`Initialization failed with status: ${response.status}`);
+  }
+
   return response;
 }
 
@@ -140,9 +189,28 @@ export async function registerIssuer(issuerPubKey, adminAddress) {
     .setTimeout(30)
     .build();
 
-  const signedTx = await signTransaction(transaction);
+  // Simulate first
+  console.log('Simulating register_issuer...');
+  const simResponse = await server.simulateTransaction(transaction);
+
+  if (!simResponse.result) {
+    const errorMsg = simResponse.error ? JSON.stringify(simResponse.error) : 'no error details';
+    console.error('Simulation failed:', JSON.stringify(simResponse, null, 2));
+    throw new Error(`Failed to simulate issuer registration: ${errorMsg}`);
+  }
+
+  // Assemble transaction with simulation results
+  const assembledTx = SorobanRpc.assembleTransaction(transaction, simResponse).build();
+
+  const signedTx = await signTransaction(assembledTx);
 
   const response = await server.sendTransaction(signedTx);
+  console.log('Register issuer response:', JSON.stringify(response, null, 2));
+
+  if (response.status !== 'PENDING' && response.status !== 'SUCCESS') {
+    throw new Error(`Issuer registration failed with status: ${response.status}`);
+  }
+
   return response;
 }
 
@@ -299,9 +367,66 @@ export async function createRingForAttribute(issuerAddress, attribute, userPubKe
     .setTimeout(30)
     .build();
 
-  const signedTx = await signTransaction(transaction);
+  // Simulate first to catch errors
+  console.log(`Simulating create_ring_for_attribute for ${attribute}...`);
+  const simResponse = await server.simulateTransaction(transaction);
+  console.log('Simulation response:', JSON.stringify(simResponse, null, 2));
+
+  if (!simResponse.result) {
+    const errorMsg = simResponse.error ? JSON.stringify(simResponse.error) : 'no error details';
+    console.error('Simulation failed:', JSON.stringify(simResponse, null, 2));
+    throw new Error(`Failed to simulate ring creation: ${errorMsg}`);
+  }
+
+  // Assemble transaction with simulation results
+  const assembledTx = SorobanRpc.assembleTransaction(transaction, simResponse).build();
+
+  const signedTx = await signTransaction(assembledTx);
 
   const response = await server.sendTransaction(signedTx);
+  console.log('create_ring_for_attribute response:', JSON.stringify(response, null, 2));
+
+  if (response.status === 'ERROR') {
+    const errorDetails = response.errorResult || response.errorResultXdr || 'unknown error';
+    console.error('Transaction error details:', errorDetails);
+    throw new Error(`Ring creation transaction failed: ${JSON.stringify(errorDetails)}`);
+  }
+
+  if (response.status !== 'PENDING' && response.status !== 'SUCCESS') {
+    throw new Error(`Ring creation failed with unexpected status: ${response.status}`);
+  }
+
+  // Wait for transaction to be confirmed (important for multiple sequential transactions)
+  if (response.status === 'PENDING') {
+    console.log('Waiting for transaction confirmation...');
+    let attempts = 0;
+    const maxAttempts = 20; // Wait up to ~20 seconds
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+
+      try {
+        const txResult = await server.getTransaction(response.hash);
+        console.log(`Transaction status (attempt ${attempts + 1}):`, txResult.status);
+
+        if (txResult.status === 'SUCCESS') {
+          console.log('Transaction confirmed successfully');
+          return txResult;
+        } else if (txResult.status === 'FAILED') {
+          throw new Error(`Transaction failed: ${JSON.stringify(txResult)}`);
+        }
+        // If still PENDING or NOT_FOUND, continue waiting
+      } catch (error) {
+        // Transaction not found yet, continue waiting
+        console.log(`Transaction not found yet (attempt ${attempts + 1})`);
+      }
+
+      attempts++;
+    }
+
+    console.warn('Transaction confirmation timeout - may still succeed');
+  }
+
   return response;
 }
 
@@ -396,7 +521,13 @@ export async function verifyAttribute(message, signature, attribute) {
   const server = getRpcServer();
   const contract = getContract();
 
-  const account = await server.getAccount(await connectWallet());
+  // Get the connected wallet address (should already be connected)
+  const walletAddress = await getWalletAddressIfConnected();
+  if (!walletAddress) {
+    throw new Error('Wallet not connected. Please connect your wallet first.');
+  }
+
+  const account = await server.getAccount(walletAddress);
 
   // Convert parameters to ScVal
   const msgBytes = Buffer.from(message, 'utf8');
@@ -440,13 +571,77 @@ export async function verifyAttribute(message, signature, attribute) {
 
   const response = await server.sendTransaction(signedTx);
   console.log('Transaction response:', JSON.stringify(response, null, 2));
+  console.log('Response status:', response.status);
+  console.log('Response hash:', response.hash);
 
-  // Parse result
+  // Handle immediate success
   if (response.status === 'SUCCESS') {
+    console.log('Transaction succeeded immediately!');
     return true;
   }
 
-  // If we get here, transaction failed
+  // Wait for transaction to be confirmed (important for getting accurate result)
+  if (response.status === 'PENDING') {
+    console.log('Transaction pending, waiting for confirmation...');
+    console.log('Transaction hash:', response.hash);
+    let attempts = 0;
+    const maxAttempts = 30; // Wait up to 30 seconds
+
+    while (attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+
+      try {
+        // Use raw RPC call to avoid XDR parsing issues
+        console.log(`Polling RPC at: ${RPC_URL}`);
+
+        const rpcResponse = await fetch(RPC_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getTransaction',
+            params: { hash: response.hash }
+          })
+        });
+        const result = await rpcResponse.json();
+
+        console.log(`Attempt ${attempts + 1}/${maxAttempts}:`, result);
+
+        if (result.result?.status === 'SUCCESS') {
+          console.log('✓ Transaction confirmed successfully!');
+          return true;
+        }
+
+        if (result.result?.status === 'FAILED') {
+          console.error('Transaction failed:', result);
+          throw new Error('Verification transaction failed on-chain');
+        }
+
+        if (result.result?.status === 'NOT_FOUND') {
+          console.log('Transaction not found yet, continuing to poll...');
+        }
+
+        // Also check for errors in the response
+        if (result.error) {
+          console.error('RPC error:', result.error);
+        }
+
+      } catch (error) {
+        console.warn(`Attempt ${attempts + 1}: Error checking transaction:`, error.message);
+        console.error('Full error:', error);
+        // Continue polling even if there's an error
+      }
+
+      attempts++;
+    }
+
+    console.warn('Transaction confirmation timeout after 30 seconds');
+    console.warn('The transaction may still succeed - check block explorer with hash:', response.hash);
+    throw new Error('Verification transaction timeout - check block explorer');
+  }
+
+  // If we get here, transaction failed immediately
   const errorMsg = response.errorResultXdr || response.status || 'unknown error';
   throw new Error(`Transaction failed: ${errorMsg}`);
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { connectWallet, registerIssuer, initializeContract, createKeys } from '../utils/contract';
+import { connectWallet, registerIssuer, initializeContract, createKeys, getWalletAddressIfConnected } from '../utils/contract';
+import ProfessionalHeader from '../components/ProfessionalHeader';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -14,7 +15,16 @@ function AdminPage() {
 
   useEffect(() => {
     loadIssuers();
+    checkExistingWallet();
   }, []);
+
+  const checkExistingWallet = async () => {
+    const address = await getWalletAddressIfConnected();
+    if (address) {
+      setWalletAddress(address);
+      console.log('Wallet already connected:', address);
+    }
+  };
 
   const handleConnectWallet = async () => {
     try {
@@ -136,7 +146,11 @@ function AdminPage() {
   return (
     <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Admin Dashboard</h1>
+        <ProfessionalHeader
+          title="Admin Dashboard"
+          subtitle="Manage system configuration and authorize KYC issuers"
+          variant="admin"
+        />
 
         {/* Wallet Connection */}
         <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">

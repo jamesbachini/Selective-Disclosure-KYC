@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 
 function HomePage() {
   return (
-    <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-center gap-8 mb-8">
+    <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <div className="flex items-center justify-center gap-4 mb-4">
         <div className="text-center flex-1">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-3xl md:text-4xl">
             <span className="block text-indigo-600">Privacy-Preserving Identity Verification</span>
@@ -18,7 +18,7 @@ function HomePage() {
         </div>
       </div>
 
-      <div className="mt-16">
+      <div className="mt-8">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">

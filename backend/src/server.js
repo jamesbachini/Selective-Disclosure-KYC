@@ -8,10 +8,11 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+// Increase limit to handle base64 images (default is 100kb)
+app.use(bodyParser.json({ limit: '10mb' }));
 
 // In-memory storage for KYC requests
-// Structure: { requestId: { userId, issuerPubKey, attributes, userData, status, timestamp } }
+// Structure: { requestId: { userId, issuerPubKey, attributes, userData, documentPhoto, status, timestamp } }
 const kycRequests = new Map();
 
 // Structure: { userId: credentialJSON }
@@ -82,10 +83,14 @@ app.post('/api/issuers', (req, res) => {
 // POST /api/request-kyc - User submits KYC request
 app.post('/api/request-kyc', (req, res) => {
   try {
-    const { userId, issuerPubKey, attributes, userData } = req.body;
+    const { userId, issuerPubKey, attributes, userData, documentPhoto } = req.body;
 
     if (!userId || !issuerPubKey || !attributes || !userData) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    if (!documentPhoto) {
+      return res.status(400).json({ error: 'Document photo is required' });
     }
 
     const requestId = uuidv4();
@@ -94,6 +99,7 @@ app.post('/api/request-kyc', (req, res) => {
       issuerPubKey,
       attributes, // Array of attribute names like ['over_18', 'resident_uk']
       userData, // { name, email, country, dob, etc. }
+      documentPhoto, // Base64 encoded image
       status: 'pending',
       timestamp: new Date().toISOString()
     });

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { generateUserId, saveCredential } from '../utils/credentials';
+import DocumentCapture from '../components/DocumentCapture';
+import ProfessionalHeader from '../components/ProfessionalHeader';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -29,6 +31,7 @@ function VerifyPage() {
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [requestId, setRequestId] = useState('');
   const [checkingCredential, setCheckingCredential] = useState(false);
+  const [documentPhoto, setDocumentPhoto] = useState(null);
 
   useEffect(() => {
     // Generate user ID on mount
@@ -82,6 +85,11 @@ function VerifyPage() {
       return;
     }
 
+    if (!documentPhoto) {
+      setMessage({ text: 'Please capture your ID/passport document', type: 'error' });
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE_URL}/api/request-kyc`, {
@@ -92,6 +100,7 @@ function VerifyPage() {
           issuerPubKey: selectedIssuer,
           attributes: selectedAttributes,
           userData,
+          documentPhoto,
         }),
       });
 
@@ -149,7 +158,11 @@ function VerifyPage() {
   return (
     <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Get Verified</h1>
+        <ProfessionalHeader
+          title="Identity Verification"
+          subtitle="Secure, private KYC with blockchain-verified credentials"
+          variant="user"
+        />
 
         {/* User ID Display */}
         <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
@@ -305,12 +318,42 @@ function VerifyPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                  <p className="text-sm text-yellow-800">
-                    Note: This is a demo. In production, this would include document upload,
-                    liveness check, and other verification steps.
-                  </p>
-                </div>
+              </div>
+            </div>
+
+            {/* Document Capture */}
+            <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+              <div className="px-4 py-5 sm:p-6">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                  Document Verification *
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Please capture a photo of your government-issued ID or passport for identity verification.
+                </p>
+                {documentPhoto ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm font-medium text-green-800">Document captured successfully</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDocumentPhoto(null)}
+                        className="text-sm text-green-700 hover:text-green-900 underline"
+                      >
+                        Retake
+                      </button>
+                    </div>
+                    <div className="max-w-md mx-auto border border-gray-200 rounded-lg overflow-hidden">
+                      <img src={documentPhoto} alt="Captured document" className="w-full" />
+                    </div>
+                  </div>
+                ) : (
+                  <DocumentCapture onCapture={setDocumentPhoto} />
+                )}
               </div>
             </div>
 

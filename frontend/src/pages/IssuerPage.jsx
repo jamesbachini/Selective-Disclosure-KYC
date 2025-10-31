@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { connectWallet, createKeys, createRingForAttribute } from '../utils/contract';
+import { connectWallet, createKeys, createRingForAttribute, getWalletAddressIfConnected } from '../utils/contract';
+import ProfessionalHeader from '../components/ProfessionalHeader';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -13,10 +14,20 @@ function IssuerPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [viewingDocument, setViewingDocument] = useState(null);
 
   useEffect(() => {
     loadIssuers();
+    checkExistingWallet();
   }, []);
+
+  const checkExistingWallet = async () => {
+    const address = await getWalletAddressIfConnected();
+    if (address) {
+      setWalletAddress(address);
+      console.log('Wallet already connected:', address);
+    }
+  };
 
   useEffect(() => {
     if (credentials && credentials.publicKey) {
@@ -118,14 +129,18 @@ function IssuerPage() {
         rings[attribute] = ring;
 
         // Update the ring on-chain
-        setMessage({ text: `Registering ring for ${attribute} on blockchain...`, type: 'info' });
+        setMessage({ text: `Registering ring for ${attribute} on blockchain (this may take a moment)...`, type: 'info' });
         try {
           await createRingForAttribute(walletAddress, attribute, ring);
+          setMessage({ text: `✓ Ring for ${attribute} registered and confirmed on blockchain`, type: 'success' });
         } catch (error) {
           console.error(`Error creating ring for ${attribute}:`, error);
-          setMessage({ text: `Warning: Failed to register ring for ${attribute} on chain, but continuing...`, type: 'warning' });
+          throw new Error(`Failed to register ring for ${attribute} on blockchain: ${error.message}. The credential cannot be issued without on-chain ring registration.`);
         }
       }
+
+      // All rings registered successfully
+      setMessage({ text: 'All rings registered, finalizing credential...', type: 'info' });
 
       // Create credential JSON
       const credential = {
@@ -204,7 +219,11 @@ function IssuerPage() {
   return (
     <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Issuer Dashboard</h1>
+        <ProfessionalHeader
+          title="Issuer Dashboard"
+          subtitle="Review and approve KYC verification requests"
+          variant="issuer"
+        />
 
         {/* Wallet Connection */}
         <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
@@ -360,6 +379,33 @@ function IssuerPage() {
                             ))}
                           </dl>
                         </div>
+
+                        {/* Document Photo */}
+                        {request.documentPhoto && (
+                          <div className="mt-4">
+                            <h5 className="text-sm font-medium text-gray-700 mb-2">
+                              Identity Document:
+                            </h5>
+                            <div className="relative group">
+                              <div
+                                className="border-2 border-gray-300 rounded-lg overflow-hidden cursor-pointer hover:border-indigo-500 transition-colors"
+                                onClick={() => setViewingDocument(request.documentPhoto)}
+                              >
+                                <img
+                                  src={request.documentPhoto}
+                                  alt="User document"
+                                  className="w-full max-w-md h-48 object-cover"
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity flex items-center justify-center">
+                                  <span className="opacity-0 group-hover:opacity-100 bg-white px-4 py-2 rounded-lg text-sm font-medium text-gray-900 shadow-lg">
+                                    Click to enlarge
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="mt-3">
                           <h5 className="text-sm font-medium text-gray-700">
                             Requested Attributes:
@@ -406,7 +452,9 @@ function IssuerPage() {
           <ul className="list-disc list-inside text-sm text-blue-800 space-y-1">
             <li>Connect your Stellar wallet to sign blockchain transactions</li>
             <li>Paste the JSON credentials provided by the admin to load your issuer identity</li>
-            <li>Review user information and approve or reject KYC requests</li>
+            <li>Review user information and identity document photo</li>
+            <li>Click on document photos to view in full size</li>
+            <li>Approve or reject KYC requests based on verification</li>
             <li>
               Approving generates real cryptographic key pairs via the smart contract for each attribute
             </li>
@@ -415,6 +463,49 @@ function IssuerPage() {
           </ul>
         </div>
       </div>
+
+      {/* Document Viewer Modal */}
+      {viewingDocument && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingDocument(null)}
+        >
+          <div className="relative max-w-5xl max-h-full">
+            <button
+              onClick={() => setViewingDocument(null)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <div className="bg-white rounded-lg overflow-hidden shadow-2xl">
+              <div className="p-4 bg-gradient-to-r from-indigo-600 to-purple-600">
+                <h3 className="text-lg font-semibold text-white">Identity Document Verification</h3>
+                <p className="text-sm text-indigo-100 mt-1">
+                  Please verify the document details match the provided user information
+                </p>
+              </div>
+              <div className="p-6 bg-gray-50">
+                <img
+                  src={viewingDocument}
+                  alt="Document full view"
+                  className="w-full h-auto max-h-[70vh] object-contain rounded-lg shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="p-4 bg-white border-t border-gray-200 flex justify-end">
+                <button
+                  onClick={() => setViewingDocument(null)}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

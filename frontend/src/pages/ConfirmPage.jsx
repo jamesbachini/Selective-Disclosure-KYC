@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { loadCredential, hasCredential, formatCredential, deleteCredential } from '../utils/credentials';
-import { signRing, verifyAttribute, getLoginCount } from '../utils/contract';
+import { signRing, verifyAttribute, getLoginCount, getWalletAddressIfConnected, connectWallet } from '../utils/contract';
+import ProfessionalHeader from '../components/ProfessionalHeader';
 
 function ConfirmPage() {
   const [credential, setCredential] = useState(null);
@@ -12,11 +13,34 @@ function ConfirmPage() {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [loginCount, setLoginCount] = useState(0);
   const [showCredentialDetails, setShowCredentialDetails] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
 
   useEffect(() => {
     loadUserCredential();
     loadLoginCount();
+    checkExistingWallet();
   }, []);
+
+  const checkExistingWallet = async () => {
+    const address = await getWalletAddressIfConnected();
+    if (address) {
+      setWalletAddress(address);
+      console.log('Wallet already connected:', address);
+    }
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      setLoading(true);
+      const address = await connectWallet();
+      setWalletAddress(address);
+      setMessage({ text: `Connected: ${address}`, type: 'success' });
+    } catch (error) {
+      setMessage({ text: `Error: ${error.message}`, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const loadUserCredential = async () => {
     try {
@@ -171,7 +195,38 @@ function ConfirmPage() {
   return (
     <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">Prove Your Identity</h1>
+        <ProfessionalHeader
+          title="Prove Your Identity"
+          subtitle="Anonymous verification using ring signatures"
+          variant="primary"
+        />
+
+        {/* Wallet Connection */}
+        <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              Wallet Connection
+            </h3>
+            {!walletAddress ? (
+              <div>
+                <p className="text-sm text-gray-600 mb-4">
+                  Connect your wallet to sign transactions for on-chain verification.
+                </p>
+                <button
+                  onClick={handleConnectWallet}
+                  disabled={loading}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
+                >
+                  {loading ? 'Connecting...' : 'Connect Wallet'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">
+                Connected as: <span className="font-mono text-green-700">{walletAddress}</span>
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* Login Count Display */}
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg p-6 mb-6">
@@ -311,10 +366,11 @@ function ConfirmPage() {
 
                   <button
                     onClick={handleVerify}
-                    disabled={loading || !signature || verificationResult !== null}
+                    disabled={loading || !signature || verificationResult !== null || !walletAddress}
                     className="flex-1 py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400"
+                    title={!walletAddress ? 'Connect wallet first' : ''}
                   >
-                    {loading ? 'Verifying...' : 'Verify On-Chain'}
+                    {loading ? 'Verifying...' : !walletAddress ? 'Connect Wallet First' : 'Verify On-Chain'}
                   </button>
 
                   <button
